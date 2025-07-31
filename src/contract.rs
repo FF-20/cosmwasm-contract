@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
 
 use crate::error::ContractError;
@@ -30,6 +30,20 @@ pub fn execute(
             immutables,
             timestamp,
         } => execute::create_dst_escrow(deps, env, info, escrow_address, immutables, timestamp),
+        ExecuteMsg::CreateSrcEscrow {
+            escrow_address,
+            order,
+            extension,
+            order_hash,
+            taker,
+            making_amount,
+            taking_amount,
+            remaining_making_amount,
+            extra_data,
+        } => execute::create_src_escrow(
+            deps, env, info, escrow_address, order, extension, order_hash, taker,
+            making_amount, taking_amount, remaining_making_amount, extra_data,
+        ),
     }
 }
 
@@ -37,10 +51,16 @@ pub fn execute(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetDstEscrow { escrow_address } => {  // Changed from escrow_key
-            to_json_binary(&query::query_dst_escrow(deps, escrow_address)?)
+            to_binary(&query::query_dst_escrow(deps, escrow_address)?)
+        }
+        QueryMsg::GetSrcEscrow { escrow_address } => {
+            to_binary(&query::query_src_escrow(deps, escrow_address)?)
         }
         QueryMsg::ListDstEscrows { start_after, limit } => {
-            to_json_binary(&query::query_all_dst_escrows(deps, start_after, limit)?)
+            to_binary(&query::query_all_dst_escrows(deps, start_after, limit)?)
+        }
+        QueryMsg::ListSrcEscrows { start_after, limit } => {
+            to_binary(&query::query_all_src_escrows(deps, start_after, limit)?)
         }
     }
 }

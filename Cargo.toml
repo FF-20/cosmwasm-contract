@@ -1,11 +1,11 @@
 [package]
-name = "cosmos-cw"
+name = "cosmos_cw"
 version = "0.1.0"
 authors = ["Mark"]
 edition = "2021"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "lib"]
 
 [features]
 default = ["contract"]
@@ -23,7 +23,6 @@ hex = "0.4.3"
 [dev-dependencies]
 cw-multi-test = "0.20.0"
 cosmwasm-schema = "1.5.0"
-cosmos_cw = { path = ".", features = ["library"] }
 
 [[example]]
 name = "schema"

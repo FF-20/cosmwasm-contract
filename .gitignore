@@ -14,3 +14,7 @@
 # IDEs
 *.iml
 .idea
+
+privatekey.txt
+neutrond-linux-amd64
+/artifacts
