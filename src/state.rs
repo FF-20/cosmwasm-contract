@@ -41,12 +41,38 @@ pub struct SrcEscrowData {
     pub extra_data: Binary,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SwapStatus {
+    Pending,
+    Completed,
+    Unknown,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct SwapData {
+    pub swap_id: String,
+    pub maker: Addr,           // Ethereum maker address (as string for cross-chain)
+    pub taker: Addr,           // Cosmos taker address
+    pub token: Addr,           // Cosmos token to release
+    pub amount: Uint128,       // Amount to release to maker
+    pub eth_tx_hash: Option<String>, // Ethereum transaction hash (optional)
+    pub status: SwapStatus,
+    pub created_at: u64,       // Block timestamp
+}
+
 // Storage for destination escrows
 pub const DST_ESCROWS: Map<String, Immutables> = Map::new("dst_escrows");
 
 // Storage for source escrows  
 pub const SRC_ESCROWS: Map<String, SrcEscrowData> = Map::new("src_escrows");
 
+// Storage for atomic swaps
+pub const SWAPS: Map<String, SwapData> = Map::new("swaps");
+
 // Event attribute constants
 pub const EVENT_TYPE_DST_ESCROW_CREATED: &str = "dst_escrow_created";
 pub const EVENT_TYPE_SRC_ESCROW_CREATED: &str = "src_escrow_created";
+pub const EVENT_TYPE_SWAP_FINALIZED: &str = "swap_finalized";
+pub const EVENT_TYPE_SWAP_CREATED: &str = "swap_created";

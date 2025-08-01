@@ -1,8 +1,136 @@
+/// Creates a new swap for atomic cross-chain exchange
+pub fn create_swap(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    swap_id: String,
+    maker: String,
+    token: String,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
+    // Validate addresses
+    let token_addr = deps.api.addr_validate(&token)?;
+    
+    // Check if swap already exists
+    if SWAPS.has(deps.storage, swap_id.clone()) {
+        return Err(ContractError::EscrowAlreadyExists {});
+    }
 
-use crate::error::ContractError;
-use crate::state::{Immutables, Order, SrcEscrowData, DST_ESCROWS, SRC_ESCROWS, EVENT_TYPE_DST_ESCROW_CREATED, EVENT_TYPE_SRC_ESCROW_CREATED};
+    // Create swap data
+    let swap_data = SwapData {
+        swap_id: swap_id.clone(),
+        maker: deps.api.addr_validate(&maker)?, // Store as Addr for consistency
+        taker: info.sender.clone(),
+        token: token_addr,
+        amount,
+        eth_tx_hash: None,
+        status: SwapStatus::Pending,
+        created_at: env.block.time.seconds(),
+    };
 
-/// Creates a new source escrow
+    // Store the swap
+    SWAPS.save(deps.storage, swap_id.clone(), &swap_data)?;
+
+    // Create event
+    let event = Event::new(EVENT_TYPE_SWAP_CREATED)
+        .add_attribute("swap_id", &swap_id)
+        .add_attribute("maker", maker)
+        .add_attribute("taker", info.sender.to_string())
+        .add_attribute("token", swap_data.token.to_string())
+        .add_attribute("amount", amount.to_string());
+
+    Ok(Response::new()
+        .add_event(event)
+        .add_attribute("action", "create_swap")
+        .add_attribute("swap_id", swap_id))
+}
+
+/// Main entrypoint to finalize a cross-chain atomic swap
+pub fn execute_finalize_swap(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    swap_id: String,
+    eth_tx_hash: String,
+) -> Result<Response, ContractError> {
+    // Load swap data
+    let mut swap_data = SWAPS.load(deps.storage, swap_id.clone())?;
+
+    // Check if already completed
+    if matches!(swap_data.status, SwapStatus::Completed) {
+        return Err(ContractError::EscrowAlreadyExists {}); // Reusing error for "already completed"
+    }
+
+    // Validate Ethereum transaction (simplified - in production you'd verify the tx)
+    validate_eth_fill(&eth_tx_hash)?;
+
+    // Mark swap as completed
+    mark_swap_completed(deps.storage, &mut swap_data, eth_tx_hash.clone())?;
+
+    // Release tokens to maker
+    let release_msg = release_to_maker(&swap_data)?;
+
+    // Create finalization event
+    let event = Event::new(EVENT_TYPE_SWAP_FINALIZED)
+        .add_attribute("swap_id", &swap_id)
+        .add_attribute("eth_tx_hash", &eth_tx_hash)
+        .add_attribute("maker", swap_data.maker.to_string())
+        .add_attribute("amount", swap_data.amount.to_string())
+        .add_attribute("token", swap_data.token.to_string())
+        .add_attribute("finalizer", info.sender.to_string());
+
+    Ok(Response::new()
+        .add_message(release_msg)
+        .add_event(event)
+        .add_attribute("action", "finalize_swap")
+        .add_attribute("swap_id", swap_id))
+}
+
+/// Validates that the Ethereum transaction hash corresponds to a successful fill
+fn validate_eth_fill(eth_tx_hash: &str) -> Result<(), ContractError> {
+    // Basic validation - in production this would:
+    // 1. Query Ethereum node/indexer to verify transaction exists
+    // 2. Parse transaction logs to confirm maker sent funds to resolver
+    // 3. Verify transaction is confirmed with sufficient blocks
+    
+    if eth_tx_hash.len() != 66 || !eth_tx_hash.starts_with("0x") {
+        return Err(ContractError::InvalidTimestamp {}); // Reusing error for invalid tx hash
+    }
+
+    Ok(())
+}
+
+/// Sends the taker's tokens from contract balance to the maker
+fn release_to_maker(swap_data: &SwapData) -> Result<BankMsg, ContractError> {
+    // Create bank message to send tokens to maker
+    let coin = Coin {
+        denom: swap_data.token.to_string(), // Assuming token address represents denom
+        amount: swap_data.amount,
+    };
+
+    Ok(BankMsg::Send {
+        to_address: swap_data.maker.to_string(),
+        amount: vec![coin],
+    })
+}
+
+
+/// @notice Marks the swap as completed and updates storage
+/// @param storage - The mutable storage of the contract, see cosmwasm_std::Storage
+/// @param swap_data - The data of the swap, see crate::state::SwapData
+/// @param eth_tx_hash - The Ethereum transaction hash.
+/// @return A result indicating success or an error, see crate::error::ContractError
+fn mark_swap_completed(
+    storage: &mut dyn cosmwasm_std::Storage,
+    swap_data: &mut SwapData,
+    eth_tx_hash: String,
+) -> Result<(), ContractError> {
+    swap_data.status = SwapStatus::Completed;
+    swap_data.eth_tx_hash = Some(eth_tx_hash);
+    
+    SWAPS.save(storage, swap_data.swap_id.clone(), swap_data)?;
+    Ok(())
+}/// Creates a new source escrow
 pub fn create_src_escrow(
     deps: DepsMut,
     _env: Env,
@@ -58,8 +186,10 @@ pub fn create_src_escrow(
         .add_event(event)
         .add_attribute("action", "create_src_escrow")
         .add_attribute("escrow_address", escrow_address))
-}use cosmwasm_std::{DepsMut, Env, Event, MessageInfo, Response, Uint128, Binary};
+}use cosmwasm_std::{DepsMut, Env, Event, MessageInfo, Response, Uint128, Binary, BankMsg, Coin};
 
+use crate::error::ContractError;
+use crate::state::{Immutables, Order, SrcEscrowData, SwapData, SwapStatus, DST_ESCROWS, SRC_ESCROWS, SWAPS, EVENT_TYPE_DST_ESCROW_CREATED, EVENT_TYPE_SRC_ESCROW_CREATED, EVENT_TYPE_SWAP_FINALIZED, EVENT_TYPE_SWAP_CREATED};
 
 /// Creates a new destination escrow
 pub fn create_dst_escrow(

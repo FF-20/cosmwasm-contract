@@ -44,6 +44,12 @@ pub fn execute(
             deps, env, info, escrow_address, order, extension, order_hash, taker,
             making_amount, taking_amount, remaining_making_amount, extra_data,
         ),
+        ExecuteMsg::ExecuteFinalizeSwap { swap_id, eth_tx_hash } => {
+            execute::execute_finalize_swap(deps, env, info, swap_id, eth_tx_hash)
+        }
+        ExecuteMsg::CreateSwap { swap_id, maker, token, amount } => {
+            execute::create_swap(deps, env, info, swap_id, maker, token, amount)
+        }
     }
 }
 
@@ -61,6 +67,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::ListSrcEscrows { start_after, limit } => {
             to_binary(&query::query_all_src_escrows(deps, start_after, limit)?)
+        }
+        QueryMsg::QuerySwapStatus { swap_id } => {
+            to_binary(&query::query_swap_status(deps, swap_id)?)
+        }
+        QueryMsg::GetSwap { swap_id } => {
+            to_binary(&query::query_swap(deps, swap_id)?)
+        }
+        QueryMsg::ListSwaps { start_after, limit } => {
+            to_binary(&query::query_all_swaps(deps, start_after, limit)?)
         }
     }
 }
