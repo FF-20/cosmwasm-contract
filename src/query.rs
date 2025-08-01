@@ -80,8 +80,27 @@ pub fn query_all_src_escrows(
 }use cosmwasm_std::{Deps, Order, StdResult};
 use cw_storage_plus::Bound;
 
-use crate::msg::{DstEscrowListResponse, DstEscrowResponse, SrcEscrowResponse, SrcEscrowListResponse, SwapStatusResponse, SwapResponse, SwapListResponse};
-use crate::state::{Immutables, SrcEscrowData, SwapData, SwapStatus, DST_ESCROWS, SRC_ESCROWS, SWAPS};
+use crate::msg::{
+    DstEscrowListResponse, DstEscrowResponse, SrcEscrowListResponse, SrcEscrowResponse,
+    SwapListResponse, SwapResponse, SwapStatusResponse, ValidateEscrowResponse,
+};
+use crate::state::{
+    Immutables, SrcEscrowData, SwapData, SwapStatus, DST_ESCROWS, SRC_ESCROWS, SWAPS,
+};
+
+/// @notice Checks if a src or dst escrow exists
+/// @param deps - The dependencies of the contract, see cosmwasm_std::Deps
+/// @param escrow_address - The address of the escrow to validate
+/// @return A boolean indicating if the escrow is valid, see crate::msg::ValidateEscrowResponse
+pub fn query_validate_escrow(
+    deps: Deps,
+    escrow_address: String,
+) -> StdResult<ValidateEscrowResponse> {
+    let is_valid =
+        SRC_ESCROWS.has(deps.storage, escrow_address.clone()) || DST_ESCROWS.has(deps.storage, escrow_address);
+
+    Ok(ValidateEscrowResponse { is_valid })
+}
 
 /// Query a specific destination escrow
 pub fn query_dst_escrow(deps: Deps, escrow_address: String) -> StdResult<DstEscrowResponse> {

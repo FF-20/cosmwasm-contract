@@ -56,6 +56,9 @@ pub fn execute(
 #[entry_point]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
+        QueryMsg::ValidateEscrow { escrow_address } => {
+            to_binary(&query::query_validate_escrow(deps, escrow_address)?)
+        }
         QueryMsg::GetDstEscrow { escrow_address } => {  // Changed from escrow_key
             to_binary(&query::query_dst_escrow(deps, escrow_address)?)
         }
