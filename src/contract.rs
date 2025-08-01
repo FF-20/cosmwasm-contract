@@ -17,6 +17,7 @@ pub fn instantiate(
     Ok(Response::new().add_attribute("method", "instantiate"))
 }
 
+
 #[entry_point]
 pub fn execute(
     deps: DepsMut,
@@ -26,7 +27,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::CreateDstEscrow {
-            escrow_address,  // Added escrow_address parameter
+            escrow_address, // Added escrow_address parameter
             immutables,
             timestamp,
         } => execute::create_dst_escrow(deps, env, info, escrow_address, immutables, timestamp),
@@ -41,15 +42,29 @@ pub fn execute(
             remaining_making_amount,
             extra_data,
         } => execute::create_src_escrow(
-            deps, env, info, escrow_address, order, extension, order_hash, taker,
-            making_amount, taking_amount, remaining_making_amount, extra_data,
+            deps,
+            env,
+            info,
+            escrow_address,
+            order,
+            extension,
+            order_hash,
+            taker,
+            making_amount,
+            taking_amount,
+            remaining_making_amount,
+            extra_data,
         ),
-        ExecuteMsg::ExecuteFinalizeSwap { swap_id, eth_tx_hash } => {
-            execute::execute_finalize_swap(deps, env, info, swap_id, eth_tx_hash)
-        }
-        ExecuteMsg::CreateSwap { swap_id, maker, token, amount } => {
-            execute::create_swap(deps, env, info, swap_id, maker, token, amount)
-        }
+        ExecuteMsg::ExecuteFinalizeSwap {
+            swap_id,
+            eth_tx_hash,
+        } => execute::execute_finalize_swap(deps, env, info, swap_id, eth_tx_hash),
+        ExecuteMsg::CreateSwap {
+            swap_id,
+            maker,
+            token,
+            amount,
+        } => execute::create_swap(deps, env, info, swap_id, maker, token, amount),
     }
 }
 
@@ -59,7 +74,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::ValidateEscrow { escrow_address } => {
             to_binary(&query::query_validate_escrow(deps, escrow_address)?)
         }
-        QueryMsg::GetDstEscrow { escrow_address } => {  // Changed from escrow_key
+        QueryMsg::GetDstEscrow { escrow_address } => {
+            // Changed from escrow_key
             to_binary(&query::query_dst_escrow(deps, escrow_address)?)
         }
         QueryMsg::GetSrcEscrow { escrow_address } => {
@@ -74,9 +90,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::QuerySwapStatus { swap_id } => {
             to_binary(&query::query_swap_status(deps, swap_id)?)
         }
-        QueryMsg::GetSwap { swap_id } => {
-            to_binary(&query::query_swap(deps, swap_id)?)
-        }
+        QueryMsg::GetSwap { swap_id } => to_binary(&query::query_swap(deps, swap_id)?),
         QueryMsg::ListSwaps { start_after, limit } => {
             to_binary(&query::query_all_swaps(deps, start_after, limit)?)
         }
@@ -133,7 +147,7 @@ mod tests {
         let timestamp = Uint128::from(env.block.time.seconds() + 3600);
 
         let msg = ExecuteMsg::CreateDstEscrow {
-            escrow_address: "cosmos1test".to_string(),  // User-provided address
+            escrow_address: "cosmos1test".to_string(), // User-provided address
             immutables: immutables.clone(),
             timestamp,
         };
@@ -142,18 +156,21 @@ mod tests {
 
         // Check that event was emitted
         assert_eq!(res.events.len(), 1);
-        assert_eq!(res.events[0].ty, crate::state::EVENT_TYPE_DST_ESCROW_CREATED);
+        assert_eq!(
+            res.events[0].ty,
+            crate::state::EVENT_TYPE_DST_ESCROW_CREATED
+        );
 
         // Check that escrow was stored by querying
         let escrow_address = "cosmos1test".to_string();
         let query_msg = QueryMsg::GetDstEscrow {
-            escrow_address: escrow_address.clone(),  // Changed from escrow_key
+            escrow_address: escrow_address.clone(), // Changed from escrow_key
         };
 
         let query_res = query(deps.as_ref(), env, query_msg).unwrap();
         let escrow_response: DstEscrowResponse = cosmwasm_std::from_binary(&query_res).unwrap();
 
-        assert_eq!(escrow_response.escrow_address, escrow_address);  // Changed from escrow_key
+        assert_eq!(escrow_response.escrow_address, escrow_address); // Changed from escrow_key
         assert_eq!(escrow_response.immutables, Some(immutables));
     }
 
@@ -182,7 +199,7 @@ mod tests {
         let timestamp = Uint128::from(env.block.time.seconds() - 3600);
 
         let msg = ExecuteMsg::CreateDstEscrow {
-            escrow_address: "cosmos1test".to_string(),  // User-provided address
+            escrow_address: "cosmos1test".to_string(), // User-provided address
             immutables,
             timestamp,
         };

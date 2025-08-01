@@ -16,7 +16,8 @@ pub struct SwapResponse {
 #[serde(rename_all = "snake_case")]
 pub struct SwapListResponse {
     pub swaps: Vec<(String, SwapData)>,
-}#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct SrcEscrowResponse {
     pub escrow_address: String,
@@ -27,7 +28,8 @@ pub struct SrcEscrowResponse {
 #[serde(rename_all = "snake_case")]
 pub struct SrcEscrowListResponse {
     pub escrows: Vec<(String, SrcEscrowData)>,
-}use cosmwasm_std::{Uint128, Binary};
+}
+use cosmwasm_std::{Binary, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -41,7 +43,7 @@ pub struct InstantiateMsg {}
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     CreateDstEscrow {
-        escrow_address: String,  // User-provided cosmos address
+        escrow_address: String, // User-provided cosmos address
         immutables: Immutables,
         timestamp: Uint128,
     },
@@ -50,7 +52,7 @@ pub enum ExecuteMsg {
         order: Order,
         extension: Binary,
         order_hash: String,
-        taker: String,           // cosmos address as string
+        taker: String, // cosmos address as string
         making_amount: Uint128,
         taking_amount: Uint128,
         remaining_making_amount: Uint128,
@@ -63,8 +65,8 @@ pub enum ExecuteMsg {
     },
     CreateSwap {
         swap_id: String,
-        maker: String,           // Ethereum maker address as string
-        token: String,           // Cosmos token address
+        maker: String, // Ethereum maker address as string
+        token: String, // Cosmos token address
         amount: Uint128,
     },
 }
@@ -76,7 +78,7 @@ pub enum QueryMsg {
         escrow_address: String,
     },
     GetDstEscrow {
-        escrow_address: String,  // Changed from escrow_key to escrow_address
+        escrow_address: String, // Changed from escrow_key to escrow_address
     },
     GetSrcEscrow {
         escrow_address: String,
@@ -111,7 +113,7 @@ pub struct ValidateEscrowResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct DstEscrowResponse {
-    pub escrow_address: String,  // Changed from escrow_key
+    pub escrow_address: String, // Changed from escrow_key
     pub immutables: Option<Immutables>,
 }
 

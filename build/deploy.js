@@ -1,146 +1,174 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.default = deployWithKeplr;
+exports.default = deployWithLocalWallet;
 const fs_1 = require("fs");
 const cosmwasm_stargate_1 = require("@cosmjs/cosmwasm-stargate");
 const stargate_1 = require("@cosmjs/stargate");
-async function deployWithKeplr() {
+const proto_signing_1 = require("@cosmjs/proto-signing");
+async function deployWithLocalWallet() {
     // Network configuration
     const NETWORK = 'neutron-testnet';
     const RPC_ENDPOINT = 'https://rpc-palvus.pion-1.ntrn.tech:443';
     const CHAIN_ID = 'pion-1';
-    // 1. Keplr check with proper type guard
-    if (!window.keplr) {
-        throw new Error('Keplr extension not found!');
-    }
-    // 2. Suggest chain with error handling
+    // Your wallet configuration from wasmkit.config.js
+    const walletConfig = {
+        name: "neutron-deploy",
+        type: "local",
+        address: "neutron15jp6un07vsjcukafcrql48hnec6e2hjpgjkakx",
+        pubkey: "{\"@type\":\"/cosmos.crypto.secp256k1.PubKey\",\"key\":\"A7DGbatH1k59aGw3rol5VDVjvYf469uKYaXrCKolBQhF\"}",
+        mnemonic: "height idle output caution catch word tower mention door upgrade denial thunder matter appear order learn project olympic miracle nerve exhibit ozone process aspect"
+    };
+    console.log(`Using local wallet: ${walletConfig.address}`);
+    // 1. Create wallet from mnemonic
+    let wallet;
     try {
-        await window.keplr.experimentalSuggestChain({
-            chainId: CHAIN_ID,
-            chainName: 'Neutron Testnet',
-            rpc: RPC_ENDPOINT,
-            rest: 'https://rest-palvus.pion-1.ntrn.tech',
-            bip44: { coinType: 118 },
-            bech32Config: {
-                bech32PrefixAccAddr: 'neutron',
-                bech32PrefixAccPub: 'neutronpub',
-                bech32PrefixValAddr: 'neutronvaloper',
-                bech32PrefixValPub: 'neutronvaloperpub',
-                bech32PrefixConsAddr: 'neutronvalcons',
-                bech32PrefixConsPub: 'neutronvalconspub',
-            },
-            currencies: [{
-                    coinDenom: 'NTRN',
-                    coinMinimalDenom: 'untrn',
-                    coinDecimals: 6,
-                }],
-            feeCurrencies: [{
-                    coinDenom: 'NTRN',
-                    coinMinimalDenom: 'untrn',
-                    coinDecimals: 6,
-                    gasPriceStep: {
-                        low: 0.01,
-                        average: 0.025,
-                        high: 0.05,
-                    },
-                }],
-            stakeCurrency: {
-                coinDenom: 'NTRN',
-                coinMinimalDenom: 'untrn',
-                coinDecimals: 6,
-            },
-            features: ['stargate', 'ibc-transfer', 'cosmwasm'],
+        wallet = await proto_signing_1.DirectSecp256k1HdWallet.fromMnemonic(walletConfig.mnemonic, {
+            prefix: "neutron", // Neutron address prefix
         });
     }
     catch (error) {
-        console.warn('Chain suggestion error:', error instanceof Error ? error.message : String(error));
+        throw new Error(`Failed to create wallet from mnemonic: ${error instanceof Error ? error.message : String(error)}`);
     }
-    // 3. Enable Keplr with proper error handling
-    try {
-        await window.keplr.enable(CHAIN_ID);
-    }
-    catch (error) {
-        throw new Error(`Keplr enable failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-    // 4. Get accounts with type safety
-    const offlineSigner = window.keplr.getOfflineSigner(CHAIN_ID);
-    const accounts = await offlineSigner.getAccounts();
-    if (!accounts || accounts.length === 0) {
-        throw new Error('No accounts found in Keplr wallet!');
-    }
+    // 2. Verify wallet address matches config
+    const accounts = await wallet.getAccounts();
     const deployerAddress = accounts[0]?.address;
     if (!deployerAddress) {
-        throw new Error('Account address is undefined!');
+        throw new Error('Failed to get account from wallet');
     }
-    console.log(`Using Keplr wallet: ${deployerAddress}`);
-    // 5. Create client with GasPrice object (with type assertion if needed)
+    if (deployerAddress !== walletConfig.address) {
+        console.warn(`⚠️  Address mismatch!`);
+        console.warn(`Config address: ${walletConfig.address}`);
+        console.warn(`Derived address: ${deployerAddress}`);
+        console.warn(`Using derived address: ${deployerAddress}`);
+    }
+    console.log(`Deployer address: ${deployerAddress}`);
+    // 3. Create signing client
     const gasPrice = stargate_1.GasPrice.fromString('0.025untrn');
-    const client = await cosmwasm_stargate_1.SigningCosmWasmClient.connectWithSigner(RPC_ENDPOINT, offlineSigner, {
-        gasPrice: gasPrice // Type assertion to bypass version conflicts
-    });
-    // 6. Load WASM with error handling
-    const wasmPath = 'artifacts/contract.wasm';
+    let client;
+    try {
+        client = await cosmwasm_stargate_1.SigningCosmWasmClient.connectWithSigner(RPC_ENDPOINT, wallet, {
+            gasPrice: gasPrice,
+            broadcastTimeoutMs: 30000,
+            broadcastPollIntervalMs: 1000, // Check every second
+        });
+    }
+    catch (error) {
+        throw new Error(`Failed to connect to RPC: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    // 4. Check account balance
+    try {
+        const balance = await client.getBalance(deployerAddress, "untrn");
+        console.log(`Account balance: ${balance.amount} ${balance.denom}`);
+        // Convert balance to NTRN (6 decimals)
+        const balanceInNtrn = parseFloat(balance.amount) / 1000000;
+        console.log(`Balance: ${balanceInNtrn} NTRN`);
+        if (balanceInNtrn < 0.1) {
+            console.warn('⚠️  Low balance! You may need more NTRN for deployment.');
+        }
+    }
+    catch (error) {
+        console.warn(`Could not fetch balance: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    // 5. Load WASM file
+    const wasmPath = 'artifacts/contracts/cosmos_cw.wasm';
     let wasmBytecode;
     try {
         const buffer = (0, fs_1.readFileSync)(wasmPath);
         wasmBytecode = new Uint8Array(buffer);
+        console.log(`Loaded WASM file: ${wasmBytecode.length} bytes`);
     }
     catch (error) {
-        throw new Error(`Failed to read WASM file: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(`Failed to read WASM file at '${wasmPath}': ${error instanceof Error ? error.message : String(error)}`);
     }
-    console.log(`Loaded WASM file: ${wasmBytecode.length} bytes`);
-    // 7. Upload contract
-    console.log('Uploading contract...');
-    const uploadResult = await client.upload(deployerAddress, wasmBytecode, 'auto');
+    // 6. Upload contract
+    console.log('📦 Uploading contract to blockchain...');
+    let uploadResult;
+    try {
+        uploadResult = await client.upload(deployerAddress, wasmBytecode, 'auto', // Let the client estimate gas
+        'Contract deployment via local wallet');
+    }
+    catch (error) {
+        throw new Error(`Upload failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
     const codeId = uploadResult.codeId;
-    console.log(`Code uploaded with ID: ${codeId}`);
-    console.log(`Upload transaction: ${uploadResult.transactionHash}`);
-    // 8. Instantiate contract
-    console.log('Instantiating contract...');
-    const initMsg = {}; // Your initialization message - update this as needed
-    const instantiateResult = await client.instantiate(deployerAddress, codeId, initMsg, 'My Contract', // contract label
-    'auto', // fee
-    {
-        admin: deployerAddress // optional admin
-    });
+    console.log(`✅ Code uploaded successfully!`);
+    console.log(`📋 Code ID: ${codeId}`);
+    console.log(`🔗 Upload transaction: ${uploadResult.transactionHash}`);
+    // 7. Instantiate contract
+    console.log('🏗️  Instantiating contract...');
+    // Customize your initialization message here
+    const initMsg = {
+    // Add your contract's initialization parameters here
+    // Example:
+    // owner: deployerAddress,
+    // name: "My Contract",
+    // symbol: "MCT"
+    };
+    let instantiateResult;
+    try {
+        instantiateResult = await client.instantiate(deployerAddress, codeId, initMsg, 'My Contract Instance', // Contract label - customize as needed
+        'auto', // Let client estimate gas
+        {
+            admin: deployerAddress,
+            memo: 'Contract instantiation via local wallet'
+        });
+    }
+    catch (error) {
+        throw new Error(`Instantiation failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
     if (!instantiateResult.contractAddress) {
         throw new Error('Contract address not returned from instantiation!');
     }
-    console.log(`Contract instantiated at: ${instantiateResult.contractAddress}`);
-    console.log(`Instantiate transaction: ${instantiateResult.transactionHash}`);
-    // 9. Save deployment info
+    console.log(`🎉 Contract deployed successfully!`);
+    console.log(`📍 Contract address: ${instantiateResult.contractAddress}`);
+    console.log(`🔗 Instantiate transaction: ${instantiateResult.transactionHash}`);
+    // 8. Save deployment information
     const deploymentInfo = {
         network: NETWORK,
         codeId,
         contractAddress: instantiateResult.contractAddress,
         deployer: deployerAddress,
-        transactionHash: instantiateResult.transactionHash
+        transactionHash: instantiateResult.transactionHash,
+        deployedAt: new Date().toISOString()
     };
     const deploymentFile = `deployment-${NETWORK}.json`;
-    (0, fs_1.writeFileSync)(deploymentFile, JSON.stringify(deploymentInfo, null, 2));
-    console.log('Deployment successful!');
-    console.log(`Deployment info saved to: ${deploymentFile}`);
-    console.log('Deployment details:', deploymentInfo);
+    try {
+        (0, fs_1.writeFileSync)(deploymentFile, JSON.stringify(deploymentInfo, null, 2));
+        console.log(`💾 Deployment info saved to: ${deploymentFile}`);
+    }
+    catch (error) {
+        console.warn(`Could not save deployment file: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    console.log('\n🚀 Deployment Summary:');
+    console.log('='.repeat(50));
+    console.log(`Network: ${NETWORK}`);
+    console.log(`Code ID: ${codeId}`);
+    console.log(`Contract Address: ${instantiateResult.contractAddress}`);
+    console.log(`Deployer: ${deployerAddress}`);
+    console.log(`Deployed At: ${deploymentInfo.deployedAt}`);
+    console.log('='.repeat(50));
 }
 // Error handling wrapper
 async function main() {
     try {
-        await deployWithKeplr();
+        await deployWithLocalWallet();
+        console.log('\n✅ Deployment completed successfully!');
     }
     catch (error) {
-        console.error('Deployment failed:', error instanceof Error ? error.message : String(error));
+        console.error('\n❌ Deployment failed!');
+        console.error('Error:', error instanceof Error ? error.message : String(error));
         if (error instanceof Error && error.stack) {
-            console.error('Stack trace:', error.stack);
+            console.error('\nStack trace:');
+            console.error(error.stack);
         }
+        console.error('\n💡 Troubleshooting tips:');
+        console.error('- Check your internet connection');
+        console.error('- Verify the WASM file exists at artifacts/contract.wasm');
+        console.error('- Ensure your wallet has sufficient NTRN balance');
+        console.error('- Try again in a few minutes if RPC is temporarily unavailable');
         process.exit(1);
     }
 }
-// Browser context check
-if (typeof window !== 'undefined' && window.keplr) {
-    main();
-}
-else {
-    console.error('This script requires browser environment with Keplr extension');
-    console.error('Make sure to run this in a browser with Keplr installed');
-}
+// Run the deployment
+main();
 //# sourceMappingURL=deploy.js.map

@@ -10,7 +10,7 @@ pub fn create_swap(
 ) -> Result<Response, ContractError> {
     // Validate addresses
     let token_addr = deps.api.addr_validate(&token)?;
-    
+
     // Check if swap already exists
     if SWAPS.has(deps.storage, swap_id.clone()) {
         return Err(ContractError::EscrowAlreadyExists {});
@@ -92,7 +92,7 @@ fn validate_eth_fill(eth_tx_hash: &str) -> Result<(), ContractError> {
     // 1. Query Ethereum node/indexer to verify transaction exists
     // 2. Parse transaction logs to confirm maker sent funds to resolver
     // 3. Verify transaction is confirmed with sufficient blocks
-    
+
     if eth_tx_hash.len() != 66 || !eth_tx_hash.starts_with("0x") {
         return Err(ContractError::InvalidTimestamp {}); // Reusing error for invalid tx hash
     }
@@ -114,7 +114,6 @@ fn release_to_maker(swap_data: &SwapData) -> Result<BankMsg, ContractError> {
     })
 }
 
-
 /// @notice Marks the swap as completed and updates storage
 /// @param storage - The mutable storage of the contract, see cosmwasm_std::Storage
 /// @param swap_data - The data of the swap, see crate::state::SwapData
@@ -127,10 +126,11 @@ fn mark_swap_completed(
 ) -> Result<(), ContractError> {
     swap_data.status = SwapStatus::Completed;
     swap_data.eth_tx_hash = Some(eth_tx_hash);
-    
+
     SWAPS.save(storage, swap_data.swap_id.clone(), swap_data)?;
     Ok(())
-}/// Creates a new source escrow
+}
+/// Creates a new source escrow
 pub fn create_src_escrow(
     deps: DepsMut,
     _env: Env,
@@ -179,24 +179,32 @@ pub fn create_src_escrow(
         .add_attribute("taker_asset", escrow_data.order.taker_asset.to_string())
         .add_attribute("making_amount", making_amount.to_string())
         .add_attribute("taking_amount", taking_amount.to_string())
-        .add_attribute("remaining_making_amount", remaining_making_amount.to_string())
+        .add_attribute(
+            "remaining_making_amount",
+            remaining_making_amount.to_string(),
+        )
         .add_attribute("creator", info.sender.to_string());
 
     Ok(Response::new()
         .add_event(event)
         .add_attribute("action", "create_src_escrow")
         .add_attribute("escrow_address", escrow_address))
-}use cosmwasm_std::{DepsMut, Env, Event, MessageInfo, Response, Uint128, Binary, BankMsg, Coin};
+}
+use cosmwasm_std::{BankMsg, Binary, Coin, DepsMut, Env, Event, MessageInfo, Response, Uint128};
 
 use crate::error::ContractError;
-use crate::state::{Immutables, Order, SrcEscrowData, SwapData, SwapStatus, DST_ESCROWS, SRC_ESCROWS, SWAPS, EVENT_TYPE_DST_ESCROW_CREATED, EVENT_TYPE_SRC_ESCROW_CREATED, EVENT_TYPE_SWAP_FINALIZED, EVENT_TYPE_SWAP_CREATED};
+use crate::state::{
+    Immutables, Order, SrcEscrowData, SwapData, SwapStatus, DST_ESCROWS,
+    EVENT_TYPE_DST_ESCROW_CREATED, EVENT_TYPE_SRC_ESCROW_CREATED, EVENT_TYPE_SWAP_CREATED,
+    EVENT_TYPE_SWAP_FINALIZED, SRC_ESCROWS, SWAPS,
+};
 
 /// Creates a new destination escrow
 pub fn create_dst_escrow(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    escrow_address: String,  // User-provided cosmos address
+    escrow_address: String, // User-provided cosmos address
     immutables: Immutables,
     timestamp: Uint128,
 ) -> Result<Response, ContractError> {
@@ -218,7 +226,7 @@ pub fn create_dst_escrow(
 
     // Create the event
     let event = Event::new(EVENT_TYPE_DST_ESCROW_CREATED)
-        .add_attribute("escrow_address", &escrow_address)  // Changed from escrow_key
+        .add_attribute("escrow_address", &escrow_address) // Changed from escrow_key
         .add_attribute("order_hash", &immutables.order_hash)
         .add_attribute("hashlock", &immutables.hashlock)
         .add_attribute("maker", immutables.maker.to_string())
@@ -233,18 +241,24 @@ pub fn create_dst_escrow(
     Ok(Response::new()
         .add_event(event)
         .add_attribute("action", "create_dst_escrow")
-        .add_attribute("escrow_address", escrow_address))  // Changed from escrow_key
+        .add_attribute("escrow_address", escrow_address)) // Changed from escrow_key
 }
 
 // Alternative function to generate a more cosmos-like address
 #[allow(dead_code)]
 fn generate_escrow_address(sender: &cosmwasm_std::Addr, block: &cosmwasm_std::BlockInfo) -> String {
-    use cosmwasm_std::Binary;
-
-    // Create a deterministic address based on sender and block info
     let input = format!("{}:{}", sender, block.height);
-    let hash = cosmwasm_std::to_binary(&input).unwrap();
+    let hash = cosmwasm_std::to_binary(&input).unwrap(); // 32-byte SHA-256
+    let addr_part = to_hex(&hash[..20]); // first 20 bytes → hex
+    format!("escrow{}", addr_part)
+}
 
-    // Take first 20 bytes and encode as hex
-    format!("escrow{}", hex::encode(&hash.to_vec()[..20.min(hash.len())]))
+fn to_hex(bytes: &[u8]) -> String {
+    const LUT: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        out.push(LUT[(b >> 4) as usize] as char);
+        out.push(LUT[(b & 0x0f) as usize] as char);
+    }
+    out
 }

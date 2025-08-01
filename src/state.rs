@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Uint128, Binary};
+use cosmwasm_std::{Addr, Binary, Uint128};
 use cw_storage_plus::Map;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -18,8 +18,8 @@ pub struct Order {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct Immutables {
-    pub order_hash: String,      // bytes32 as hex string (e.g., "0x...")
-    pub hashlock: String,        // same
+    pub order_hash: String, // bytes32 as hex string (e.g., "0x...")
+    pub hashlock: String,   // same
     pub maker: Addr,
     pub taker: Addr,
     pub token: Addr,
@@ -33,7 +33,7 @@ pub struct Immutables {
 pub struct SrcEscrowData {
     pub order: Order,
     pub extension: Binary,
-    pub order_hash: String,      // bytes32 as hex string
+    pub order_hash: String, // bytes32 as hex string
     pub taker: Addr,
     pub making_amount: Uint128,
     pub taking_amount: Uint128,
@@ -53,19 +53,19 @@ pub enum SwapStatus {
 #[serde(rename_all = "snake_case")]
 pub struct SwapData {
     pub swap_id: String,
-    pub maker: Addr,           // Ethereum maker address (as string for cross-chain)
-    pub taker: Addr,           // Cosmos taker address
-    pub token: Addr,           // Cosmos token to release
-    pub amount: Uint128,       // Amount to release to maker
+    pub maker: Addr,     // Ethereum maker address (as string for cross-chain)
+    pub taker: Addr,     // Cosmos taker address
+    pub token: Addr,     // Cosmos token to release
+    pub amount: Uint128, // Amount to release to maker
     pub eth_tx_hash: Option<String>, // Ethereum transaction hash (optional)
     pub status: SwapStatus,
-    pub created_at: u64,       // Block timestamp
+    pub created_at: u64, // Block timestamp
 }
 
 // Storage for destination escrows
 pub const DST_ESCROWS: Map<String, Immutables> = Map::new("dst_escrows");
 
-// Storage for source escrows  
+// Storage for source escrows
 pub const SRC_ESCROWS: Map<String, SrcEscrowData> = Map::new("src_escrows");
 
 // Storage for atomic swaps

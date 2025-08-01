@@ -18,7 +18,8 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
-    "@cosmjs/cosmwasm-stargate": "^0.34.0",
+    "@cosmjs/cosmwasm-stargate": "^0.32.2",
+    "@cosmjs/proto-signing": "^0.32.2",
     "@keplr-wallet/types": "^0.12.258",
     "@kubiklabs/wasmkit": "^0.2.9",
     "wasmkit": "^2.0.3"

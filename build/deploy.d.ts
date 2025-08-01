@@ -1,3 +1,3 @@
 export const __esModule: boolean;
-export default deployWithKeplr;
-declare function deployWithKeplr(): Promise<void>;
+export default deployWithLocalWallet;
+declare function deployWithLocalWallet(): Promise<void>;
