@@ -5,39 +5,48 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct Order {
-    pub salt: Uint128,
-    pub maker: Addr,
-    pub receiver: Addr,
-    pub maker_asset: Addr,
-    pub taker_asset: Addr,
-    pub making_amount: Uint128,
-    pub taking_amount: Uint128,
+pub struct Order { // The order info used to create SRC. Filled by frontend.
+    pub salt: String, // Is this needed?
+    pub maker: String, // Maker (cos) address.
+    pub taker: Option<String>, // Resolver (eth) address.
+    pub secret_hash: String, // Hashlock
+    pub maker_asset: Option<String>, // COS
+    pub taker_asset: Option<String>, // ETH
+    pub making_amount: Option<Uint128>,
+    pub taking_amount: Option<Uint128>,
+    pub signature: String, // Order signature.
+    pub timelock: TimeLocks,
+    pub nonce: Option<String>,
+    pub created_at: Option<Uint128>,
+    pub status: Option<Uint128>, // TODO: Add OrderStatus
+    pub est_gas_cost: Option<Uint128>, // TODO: Add OrderStatus
+    pub profitability: Option<String>, // TODO: Add OrderStatus
+
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct Immutables {
-    pub order_hash: String, // bytes32 as hex string (e.g., "0x...")
-    pub hashlock: String,   // same
+pub struct Immutables { // The order infor used to create the DST.
+    pub order_hash: String, // bytes32 as hex string (e.g., "0x...") // NOT REDUNDANT.
+    pub secret_hash: String,   // Hashlock
     pub maker: Addr,
     pub taker: Addr,
     pub token: Addr,
     pub amount: Uint128,
     pub safety_deposit: Uint128,
-    pub timelocks: Uint128,
+    pub timelocks: TimeLocks,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct SrcEscrowData {
     pub order: Order,
-    pub extension: Binary,
-    pub order_hash: String, // bytes32 as hex string
-    pub taker: Addr,
-    pub making_amount: Uint128,
-    pub taking_amount: Uint128,
+    pub extension: Option<Binary>,
+    pub order_hash: Option<String>, // bytes32 as hex string NOT HASHLOCK
+    pub taker: Option<Addr>, // Also the resolver stated in the Order?
     pub remaining_making_amount: Uint128,
+    pub src_chain_id: String, // COS id
+    pub dst_chain_id: String, // ETH id
     pub extra_data: Binary,
 }
 
@@ -60,6 +69,17 @@ pub struct SwapData {
     pub eth_tx_hash: Option<String>, // Ethereum transaction hash (optional)
     pub status: SwapStatus,
     pub created_at: u64, // Block timestamp
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TimeLocks {
+    pub src_withdrawal: u64,
+    pub src_public_withdrawal: u64,
+    pub src_cancellation: u64,
+    pub src_public_cancellation: u64,
+    pub dst_withdrawal: u64,
+    pub dst_public_withdrawal: u64,
+    pub dst_cancellation: u64,
 }
 
 // Storage for destination escrows
