@@ -1,4 +1,4 @@
-use cosmwasm_std::StdError;
+use cosmwasm_std::{StdError, Uint128};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -17,4 +17,21 @@ pub enum ContractError {
 
     #[error("Escrow not found")]
     EscrowNotFound {},
+
+    #[error("Permit already used")]
+    PermitAlreadyUsed {},
+
+    #[error("Permit expired")]
+    PermitExpired {},
+
+    #[error("Invalid nonce")]
+    InvalidNonce {},
+
+    #[error("Invalid signature")]
+    InvalidSignature {},
+
+    #[error("Invalid signature length")]
+    InvalidSignatureLength {
+        length: usize
+    },
 }

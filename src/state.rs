@@ -1,5 +1,5 @@
 use cosmwasm_std::{Addr, Binary, Uint128};
-use cw_storage_plus::Map;
+use cw_storage_plus::{Map, Item};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -96,3 +96,13 @@ pub const EVENT_TYPE_DST_ESCROW_CREATED: &str = "dst_escrow_created";
 pub const EVENT_TYPE_SRC_ESCROW_CREATED: &str = "src_escrow_created";
 pub const EVENT_TYPE_SWAP_FINALIZED: &str = "swap_finalized";
 pub const EVENT_TYPE_SWAP_CREATED: &str = "swap_created";
+
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Config {
+    pub cw20_contract: Addr,
+}
+
+pub const CONFIG: Item<Config> = Item::new("config");
+pub const NONCES: Map<&Addr, u64> = Map::new("nonces");
+pub const USED_PERMITS: Map<(&Addr, &str), bool> = Map::new("used_permits");

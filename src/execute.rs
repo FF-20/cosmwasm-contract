@@ -1,6 +1,14 @@
 // use cosmwasm_std::{
 //     to_binary, Binary, CosmosMsg, DepsMut, Env, Event, MessageInfo, Response, Uint128, WasmMsg,
 // };
+use crate::state::{Config, CONFIG, NONCES, USED_PERMITS};
+
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, Permit, QueryMsg};
+
+use cosmwasm_std::{attr};
+
+use crate::permit::verify_permit_signature;
+
 use cw20::Cw20ExecuteMsg;
 
 /// Creates a new swap for atomic cross-chain exchange
@@ -614,3 +622,63 @@ pub fn create_src_escrow2() {}
 // Params: CrossChainOrder, ResolverDecision
 // Called by Step. 2 in CrossChainResolver.ts
 pub fn create_dst_escrow2() {}
+
+
+pub fn execute_transfer_with_permit(
+    deps: DepsMut,
+    env: Env,
+    permit: Permit,
+    from: String,
+    to: String,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let from_addr = deps.api.addr_validate(&from)?;
+    
+    // Check if permit already used
+    // if USED_PERMITS.has(deps.storage, (&from_addr, &permit.params.permit_name)) {
+    //     return Err(ContractError::PermitAlreadyUsed {});
+    // }
+    
+    // Check expiration
+    // if let Some(expiration) = permit.params.expiration {
+    //     if env.block.height >= expiration {
+    //         return Err(ContractError::PermitExpired {});
+    //     }
+    // }
+    
+    // Verify nonce
+    let current_nonce = NONCES.may_load(deps.storage, &from_addr)?.unwrap_or(0);
+    // if permit.params.nonce != current_nonce {
+    //     return Err(ContractError::InvalidNonce {});
+    // }
+    
+    // Verify signature
+    // verify_permit_signature(&env, &permit, &from_addr)?;
+    
+    // Mark permit as used and increment nonce
+    USED_PERMITS.save(deps.storage, (&from_addr, &permit.params.permit_name), &true)?;
+    NONCES.save(deps.storage, &from_addr, &(current_nonce + 1))?;
+    
+    // Execute transfer on CW20 contract
+    let transfer_msg = Cw20ExecuteMsg::TransferFrom {
+        owner: from,
+        recipient: to.clone(),
+        amount,
+    };
+    
+    let wasm_msg = WasmMsg::Execute {
+        contract_addr: config.cw20_contract.to_string(),
+        msg: to_binary(&transfer_msg)?,
+        funds: vec![],
+    };
+    
+    Ok(Response::new()
+        .add_message(CosmosMsg::Wasm(wasm_msg))
+        .add_attributes(vec![
+            attr("action", "transfer_with_permit"),
+            attr("from", from_addr),
+            attr("to", to),
+            attr("amount", amount),
+        ]))
+}

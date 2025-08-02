@@ -1,11 +1,15 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    attr, entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
+    Response, StdResult, Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
 use crate::execute;
-use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, Permit, QueryMsg};
 use crate::query;
+
+use crate::state::{Config, CONFIG, NONCES, USED_PERMITS};
+use cw20::Cw20ExecuteMsg;
 
 #[entry_point]
 pub fn instantiate(
@@ -14,9 +18,17 @@ pub fn instantiate(
     _info: MessageInfo,
     _msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    Ok(Response::new().add_attribute("method", "instantiate"))
-}
+    let cw20_contract = _deps.api.addr_validate(&_msg.cw20_contract)?;
 
+    let config = Config {
+        cw20_contract: cw20_contract.clone(),
+    };
+    CONFIG.save(_deps.storage, &config)?;
+
+    Ok(Response::new()
+        .add_attribute("method", "instantiate")
+        .add_attribute("cw20_contract", cw20_contract))
+}
 
 #[entry_point]
 pub fn execute(
@@ -65,6 +77,12 @@ pub fn execute(
             token,
             amount,
         } => execute::create_swap(deps, env, info, swap_id, maker, token, amount),
+        ExecuteMsg::TransferWithPermit {
+            permit,
+            from,
+            to,
+            amount,
+        } => execute::execute_transfer_with_permit(deps, env, permit, from, to, amount),
     }
 }
 
